@@ -1,30 +1,24 @@
-import tweepy
 import json
 import re
-import os
+import time
 from datetime import datetime
+from ntscraper import Nitter
 
-# --- CONFIGURATION ---
-# We retrieve these from Environment Variables (set in GitHub Secrets)
-BEARER_TOKEN = os.environ.get("TWITTER_BEARER_TOKEN")
+# CONFIGURATION
 TARGET_USER = "E_Boeminghaus"
+START_DATE = datetime(2025, 1, 1)
 
-def get_twitter_client():
-    if not BEARER_TOKEN:
-        raise ValueError("Bearer Token not found in environment variables.")
-    return tweepy.Client(bearer_token=BEARER_TOKEN)
-
-def parse_tweet(text):
+def get_layoff_data(text):
     """
-    Analyzes text to find a company name and a number.
-    Style: Brutalist/Simple.
+    Parses text for company and number.
     """
-    # 1. Extract Number
-    # Looks for numbers like 1.000, 500, 10,000
+    # 1. Clean number (remove points like 1.000)
+    # This regex looks for numbers like 100, 1.000, 10,000
     number_pattern = r'(\d{1,3}(?:[.,]\d{3})*|\d+)'
     
-    # Keyword filter: Ensure it's about layoffs
-    keywords = ['stellen', 'abbau', 'entlassung', 'kündigung', 'jobs', 'streichen']
+    keywords = ['stellen', 'abbau', 'entlassung', 'kündigung', 'jobs', 'streichen', 'wegfallen']
+    
+    # Must contain a keyword
     if not any(k in text.lower() for k in keywords):
         return None, 0
 
@@ -35,88 +29,77 @@ def parse_tweet(text):
         if num_str.isdigit():
             count = int(num_str)
 
-    # 2. Extract Company (Heuristic)
-    # We assume the company is often the first word or capitalized words at start
+    # Heuristic for Company Name (First word that isn't a stopword)
     words = text.split()
     company = "Unbekannt"
+    stop_words = ['bei', 'der', 'die', 'das', 'in', 'von', 'nach', 'mehr', 'rund', 'knapp', 'etwa']
     
-    # Basic cleanup to remove hashtags or common start words
-    clean_words = [w for w in words if not w.startswith('#') and w.lower() not in ['bei', 'der', 'die', 'das']]
-    if clean_words:
-        company = clean_words[0].replace(':', '').replace(',', '')
+    for w in words:
+        clean_w = w.strip('.,:;!?')
+        if clean_w.lower() not in stop_words and not clean_w.startswith('#') and len(clean_w) > 2:
+            company = clean_w
+            break
 
     return company, count
 
 def main():
-    print(f"--- Starting Scraper for {TARGET_USER} ---")
-    
+    print(f"--- Scraping {TARGET_USER} since {START_DATE.strftime('%Y-%m-%d')} ---")
+    scraper = Nitter(log_level=1, skip_instance_check=False)
+
     try:
-        client = get_twitter_client()
-        
-        # 1. Get User ID
-        user = client.get_user(username=TARGET_USER)
-        if not user.data:
-            print("User not found.")
-            return
-        user_id = user.data.id
+        # We fetch a large number (500) to ensure we go back to Jan 1st
+        # Nitter is slow, so this might take a minute.
+        tweets = scraper.get_tweets(TARGET_USER, mode='user', number=500)
+    except Exception as e:
+        print(f"Scraping failed: {e}")
+        return
 
-        # 2. Get Tweets (Last 20)
-        # tweet_fields=['created_at'] allows us to get the date
-        response = client.get_users_tweets(user_id, max_results=20, tweet_fields=['created_at'])
-        
-        if not response.data:
-            print("No tweets found.")
-            return
-
-        new_entries = []
-        
-        # 3. Load existing data
-        file_path = 'data/layoffs.json'
-        if os.path.exists(file_path):
-            with open(file_path, 'r', encoding='utf-8') as f:
-                existing_data = json.load(f)
-                existing_ids = {entry['id'] for entry in existing_data}
-        else:
-            existing_data = []
-            existing_ids = set()
-
-        # 4. Process Tweets
-        for tweet in response.data:
-            t_id = str(tweet.id)
-            
-            if t_id in existing_ids:
+    final_data = []
+    
+    for tweet in tweets.get('tweets', []):
+        try:
+            # Parse Date from Nitter format "Jan 1, 2025 · 10:00 AM UTC"
+            # Format depends on the Nitter instance, usually "MMM D, YYYY"
+            raw_date = tweet['date']
+            # Simplistic date parser, might need adjustment based on instance
+            # This handles the common Nitter format
+            date_str = raw_date.replace(',', '').split('·')[0].strip() 
+            try:
+                dt_obj = datetime.strptime(date_str, "%b %d %Y")
+            except:
+                # Fallback for different formats
                 continue
 
-            text = tweet.text
-            company, count = parse_tweet(text)
+            # Check if older than Jan 1, 2025
+            if dt_obj < START_DATE:
+                continue
+
+            text = tweet['text']
+            company, count = get_layoff_data(text)
 
             if count > 0:
-                print(f"Found: {company} - {count}")
+                print(f"Found: {company} ({count}) on {dt_obj.date()}")
                 entry = {
-                    "id": t_id,
-                    "date": tweet.created_at.strftime("%Y-%m-%d"),
+                    "id": tweet['link'], # Use link as ID
+                    "date": dt_obj.strftime("%Y-%m-%d"),
                     "company": company,
                     "count": count,
                     "text": text,
-                    "link": f"https://twitter.com/{TARGET_USER}/status/{t_id}"
+                    "link": tweet['link']
                 }
-                new_entries.append(entry)
+                final_data.append(entry)
+                
+        except Exception as parse_error:
+            continue
 
-        # 5. Save
-        if new_entries:
-            all_data = new_entries + existing_data
-            # Sort by Date descending
-            all_data.sort(key=lambda x: x['date'], reverse=True)
-            
-            os.makedirs('data', exist_ok=True)
-            with open(file_path, 'w', encoding='utf-8') as f:
-                json.dump(all_data, f, indent=4, ensure_ascii=False)
-            print(f"Saved {len(new_entries)} new entries.")
-        else:
-            print("No new relevant data found.")
+    # Sort by date descending
+    final_data.sort(key=lambda x: x['date'], reverse=True)
 
-    except Exception as e:
-        print(f"Error: {e}")
+    # Save to file
+    with open('data/layoffs.json', 'w', encoding='utf-8') as f:
+        json.dump(final_data, f, indent=4, ensure_ascii=False)
+    
+    print(f"Successfully saved {len(final_data)} entries.")
 
 if __name__ == "__main__":
     main()
