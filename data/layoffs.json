@@ -1,1 +1,50 @@
-[]
+[
+    {
+        "id": "man1",
+        "date": "2025-02-26",
+        "company": "BASF",
+        "count": 2500,
+        "text": "BASF kündigt weiteren Stellenabbau an. 2.500 Jobs betroffen.",
+        "link": "https://x.com/E_Boeminghaus"
+    },
+    {
+        "id": "man2",
+        "date": "2025-02-24",
+        "company": "Bosch",
+        "count": 3500,
+        "text": "Bosch plant Abbau von bis zu 3500 Stellen in der Hausgeräte-Sparte.",
+        "link": "https://x.com/E_Boeminghaus"
+    },
+    {
+        "id": "man3",
+        "date": "2025-02-20",
+        "company": "Ford",
+        "count": 4000,
+        "text": "Ford streicht in Europa 4000 Stellen, viele davon in Köln.",
+        "link": "https://x.com/E_Boeminghaus"
+    },
+    {
+        "id": "man4",
+        "date": "2025-02-15",
+        "company": "ThyssenKrupp",
+        "count": 1500,
+        "text": "ThyssenKrupp Steel plant Abbau von 1.500 Arbeitsplätzen.",
+        "link": "https://x.com/E_Boeminghaus"
+    },
+    {
+        "id": "man5",
+        "date": "2025-01-28",
+        "company": "Miele",
+        "count": 2000,
+        "text": "Miele muss sparen und baut weltweit 2000 Stellen ab.",
+        "link": "https://x.com/E_Boeminghaus"
+    },
+    {
+        "id": "man6",
+        "date": "2025-01-10",
+        "company": "SAP",
+        "count": 8000,
+        "text": "SAP Restrukturierung betrifft weltweit 8000 Jobs.",
+        "link": "https://x.com/E_Boeminghaus"
+    }
+]
