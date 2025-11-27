@@ -1,37 +1,33 @@
-name: Daily Data Update
+name: Daily Update
 
 on:
   schedule:
-    - cron: '0 8 * * *' # Runs at 08:00 UTC daily
-  workflow_dispatch: # Allows manual triggering
+    - cron: '0 8 * * *'
+  workflow_dispatch:
 
 jobs:
-  build:
+  scrape-and-deploy:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+      - name: Checkout Code
+        uses: actions/checkout@v3
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.9'
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
 
-    - name: Install dependencies
-      run: |
-        pip install -r requirements.txt
+      - name: Install Libraries
+        run: pip install -r requirements.txt
 
-    - name: Run Scraper
-      run: |
-        mkdir -p data
-        python scraper.py
+      - name: Run Scraper
+        run: python scraper.py
 
-    - name: Commit and Push changes
-      run: |
-        git config --global user.name 'GitHub Action'
-        git config --global user.email 'action@github.com'
-        git add data/layoffs.json
-        git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update layoff data" && git push)
+      - name: Commit Data
+        run: |
+          git config --global user.name 'LayoffBot'
+          git config --global user.email 'bot@noreply.com'
+          git add data/layoffs.json
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Update Data" && git push)
